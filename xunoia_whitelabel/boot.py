@@ -1,40 +1,39 @@
+```python
 # Copyright (c) 2026, Xunoia Technologies Private Limited
 # License: Proprietary
+
 """
 extend_bootinfo handler.
 
-Runs inside frappe.sessions.get(), immediately after frappe.boot.get_bootinfo()
-has already populated `bootinfo.navbar_settings` (see hooks.py for the source
-citations that establish this ordering).
+Runs inside frappe.sessions.get(), after frappe.boot.get_bootinfo()
+has populated bootinfo.navbar_settings.
 
-Nothing here writes to the database. It only edits the in-memory `bootinfo`
-dict before it is serialized to the browser as `frappe.boot`. That makes this
-handler trivially idempotent (it runs fresh, from the real DB state, on every
-single page boot) and completely unaffected by `bench migrate`, asset
-rebuilds, or core upgrades — there is no state to drift out of sync.
+This handler only modifies the in-memory boot payload. It does not write
+anything to the database.
 
-Per the Frappe hooks reference: "NEVER put secrets/API keys in bootinfo — it
-is sent to the browser. NEVER run heavy queries in bootinfo — it runs on
-EVERY page load." Accordingly, brand info is read through
-frappe.get_cached_doc (single Redis-cached fetch), and nothing else here
-touches the database.
+Brand information is read through frappe.get_cached_doc() so the boot
+request uses the cached Xunoia Brand Settings document.
 """
 
 import frappe
 
-# Stock Navbar Settings > Help Dropdown items that should never reach a
-# Xunoia-branded desk, regardless of what a future core migration re-adds.
-HIDDEN_HELP_ITEMS = {"Frappe Support"}
 
-# Stock Help Dropdown items whose destination should point at Xunoia's own
-# properties instead of frappe.io. Matched by item_label; only the fields
-# listed are overwritten, everything else on the row (icon, idx, condition)
-# is left untouched.
+# Stock Navbar Settings > Help Dropdown items that should never reach
+# an Xunoia-branded Desk.
+HIDDEN_HELP_ITEMS = {
+	"Frappe Support",
+}
+
+
+# Stock Help Dropdown items whose visible label/destination should be
+# changed for Xunoia.
 RELABELLED_HELP_ITEMS = {
-	"About": {"item_label": "About Xunoia"},
+	"About": {
+		"item_label": "About Xunoia",
+	},
 	"Documentation": {
 		"item_label": "Xunoia Documentation",
-		"route": None,  # cleared below in favour of external_link
+		"route": None,
 	},
 }
 
@@ -46,13 +45,20 @@ def boot_session(bootinfo):
 
 
 def _strip_and_relabel_help_dropdown(bootinfo):
+	"""
+	Remove/relabel Help dropdown entries in the in-memory boot payload.
+
+	Navbar Settings is a Frappe Document object, not a plain dictionary.
+	Therefore `.get()` is used for reading and `.set()` is used for writing.
+	"""
 	navbar_settings = bootinfo.get("navbar_settings")
+
 	if not navbar_settings:
-		# Defensive: on a Guest/website boot payload this key may not exist
-		# at all (navbar_settings is a Desk-only concept). Nothing to do.
+		# Guest/website boot payloads may not contain navbar_settings.
 		return
 
 	help_dropdown = navbar_settings.get("help_dropdown") or []
+
 	if not help_dropdown:
 		return
 
@@ -62,30 +68,37 @@ def _strip_and_relabel_help_dropdown(bootinfo):
 	for item in help_dropdown:
 		label = item.get("item_label")
 
+		# Remove stock Frappe Support.
 		if label in HIDDEN_HELP_ITEMS:
 			changed = True
-			continue  # drop this row from the boot payload entirely
+			continue
 
+		# Relabel selected stock entries.
 		override = RELABELLED_HELP_ITEMS.get(label)
+
 		if override:
-			item.update({k: v for k, v in override.items() if v is not None})
+			for key, value in override.items():
+				if value is not None:
+					item.set(key, value)
+
 			changed = True
 
 		kept_items.append(item)
 
 	if changed:
-		navbar_settings["help_dropdown"] = kept_items
+		navbar_settings.set("help_dropdown", kept_items)
 
 
 def _inject_xunoia_branding(bootinfo):
-	"""Expose the single source of truth for brand strings to client JS.
+	"""
+	Expose the centralized Xunoia branding configuration to Desk JavaScript.
 
-	Namespaced as `frappe.boot.xunoia.branding` to match the shape already
-	consumed by the working show_about() override (public/js/xunoia_whitelabel.js)
-	referenced in the brief — this keeps that override unchanged and adds a
-	*source*, not a second, incompatible shape.
+	Available to the browser as:
+
+	    frappe.boot.xunoia.branding
 	"""
 	settings = frappe.get_cached_doc("Xunoia Brand Settings")
+
 	bootinfo.xunoia = {
 		"branding": {
 			"product_name": settings.product_name or "Xunoia",
@@ -96,3 +109,4 @@ def _inject_xunoia_branding(bootinfo):
 			"support_url": settings.support_url,
 		}
 	}
+```
