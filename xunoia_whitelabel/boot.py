@@ -1,4 +1,3 @@
-```python
 # Copyright (c) 2026, Xunoia Technologies Private Limited
 # License: Proprietary
 
@@ -109,4 +108,3 @@ def _inject_xunoia_branding(bootinfo):
 			"support_url": settings.support_url,
 		}
 	}
-```
