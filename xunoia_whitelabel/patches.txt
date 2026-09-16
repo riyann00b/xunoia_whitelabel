@@ -1,0 +1,9 @@
+# xunoia_whitelabel does not ship numbered patches.
+#
+# Every customization in this app is either:
+#   1. Runtime-only (extend_bootinfo, JS override) — nothing to migrate, and
+#   2. Idempotent config ensured in after_migrate (see xunoia_whitelabel/install.py)
+#
+# A numbered patch is for a one-time, order-dependent data transformation tied
+# to a specific app version. Nothing here needs that: after_migrate re-checks
+# and re-applies config every migrate, safely, forever, on every site version.

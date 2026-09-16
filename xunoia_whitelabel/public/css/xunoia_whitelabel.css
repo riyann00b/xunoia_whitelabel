@@ -1,0 +1,38 @@
+/* Copyright (c) 2026, Xunoia Technologies Private Limited
+ * License: Proprietary
+ *
+ * CSS is tier 7 in the engineering-priority stack (above only a core
+ * modification) — every rule below exists because no higher-tier
+ * mechanism (config / hook / template override) reaches that pixel.
+ * Each rule documents which surface it's a fallback for and what would
+ * make it removable.
+ */
+
+/* Website Settings > Login Page > "App Logo" has a known upstream bug
+ * (frappe/frappe#28402): the field saves but does not reliably render.
+ * Xunoia Brand Settings.logo is the source of truth; this rule is the
+ * fallback path in case the DB-config path is affected by that bug on a
+ * given frappe patch release. Remove once #28402 is confirmed fixed on
+ * the target frappe version. */
+.page-card .brand-logo,
+#page-login .app-logo {
+	content: "";
+	background-image: var(--xunoia-logo-url, none);
+	background-size: contain;
+	background-repeat: no-repeat;
+}
+
+/* Website footer "Powered by ERPNext / Frappe" badge. The primary fix is
+ * the templates/includes/footer/footer_powered.html override (see
+ * templates/ in this app); this rule is a belt-and-suspenders hide for
+ * any cached/older page that still renders the stock partial. */
+.web-footer .powered-by,
+footer .powered-by-frappe {
+	display: none !important;
+}
+
+/* Desk: hide the global "New updates available" indicator that links to
+ * frappe.io release notes -- not meaningful to a Xunoia end customer. */
+.navbar .btn-new-updates {
+	display: none !important;
+}

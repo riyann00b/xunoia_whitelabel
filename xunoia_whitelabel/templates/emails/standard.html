@@ -1,0 +1,25 @@
+{# Copyright (c) 2026, Xunoia Technologies Private Limited
+   License: Proprietary
+
+   EVIDENCE TIER: ENGINEERING RECOMMENDATION / REQUIRES LOCAL TESTING.
+   Frappe's Jinja loader resolves "templates/emails/standard.html" against
+   every installed app in turn, so a file at this same relative path in
+   xunoia_whitelabel is picked up ahead of frappe's own copy for the bare
+   `templates/emails/standard.html` lookup used by the email queue. What
+   was NOT independently re-verified against current source in this pass is
+   the exact block name(s) frappe/frappe/templates/emails/standard.html
+   defines around its "Powered by Frappe" line, so `block footer_brand`
+   below is a best-known name to confirm on your bench before relying on
+   it — see the Verification section (source-search snippet) for the exact
+   command to check.
+
+   If the block name doesn't match on your installed version, the safe
+   fallback already shipped in public/css/xunoia_whitelabel.css
+   (`.web-footer .powered-by { display: none }`) still hides the line
+   visually until this template is corrected.
+#}
+{% extends "frappe/templates/emails/standard.html" %}
+
+{% block footer_brand %}
+	<span>{{ _("Sent via {0}").format(frappe.db.get_single_value("Xunoia Brand Settings", "product_name") or "Xunoia") }}</span>
+{% endblock %}
