@@ -20,11 +20,13 @@ import frappe
 def update_context(context):
 	settings = frappe.get_cached_doc("Xunoia Brand Settings")
 
-	context.app_name = settings.product_name or "Xunoia"
+	context.app_name = settings.product_name or "XunoiaERP"
 	context.brand_html = settings.company_name or "Xunoia"
-	if settings.logo:
-		context.website_logo = settings.logo
-	if settings.favicon:
-		context.favicon = settings.favicon
+	context.brand_name = settings.company_name or "Xunoia"
+	context.website_logo = settings.logo or "/assets/xunoia_whitelabel/images/logo.png"
+	context.favicon = settings.favicon or "/assets/xunoia_whitelabel/images/favicon.png"
+	context.site_url = settings.website_url or frappe.utils.get_url()
+	if context.get("title") == "Login":
+		context.title = f"{context.app_name} - {context.title}"
 
 	return context

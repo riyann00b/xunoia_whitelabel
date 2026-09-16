@@ -1,0 +1,15 @@
+<div class="email-footer-container text-muted {% if email_account_footer or sender_address or default_mail_footer %}with-divider{% endif %}">
+	{% if email_account_footer %}
+	<div class="email-account-footer">
+		{{ email_account_footer }}
+	</div>
+	{% endif %}
+	{% if sender_address %}
+	<div class="sender-address">
+		{{ sender_address }}
+	</div>
+	{% endif %}
+	<div class="default-mail-footer">
+		<div>{{ _("Sent via {0}").format(frappe.db.get_single_value("Xunoia Brand Settings", "product_name") or "XunoiaERP") }}</div>
+	</div>
+</div>

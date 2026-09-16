@@ -1,9 +1,21 @@
 app_name = "xunoia_whitelabel"
-app_title = "Xunoia"
+app_title = "XunoiaERP"
 app_publisher = "Xunoia Technologies Private Limited"
 app_description = "Customer-facing white-label branding for the Frappe/ERPNext desk, website, and documents."
 app_email = "engineering@xunoia.com"
 app_license = "Proprietary"
+app_logo_url = "/assets/xunoia_whitelabel/images/logo.png"
+app_color = "#2563eb"
+app_home = "/desk"
+
+add_to_apps_screen = [
+	{
+		"name": app_name,
+		"logo": app_logo_url,
+		"title": app_title,
+		"route": app_home,
+	},
+]
 
 # App identity used by Frappe's own app-switcher / installed-apps list / about dialog
 # version table (frappe.utils.change_log.get_versions() reads app_title from hooks).
@@ -75,29 +87,11 @@ update_website_context = "xunoia_whitelabel.www.website_context.update_context"
 # a later-installed app wins over the framework's own copy of that path.
 # xunoia_whitelabel installs after frappe/erpnext, so these two paths
 # transparently replace the stock ones with no core edits.
-# EVIDENCE: ENGINEERING RECOMMENDATION (documented Frappe behavior) —
-# confirm the exact precedence order for your installed-app order locally
-# (see Verification section) before relying on it for anything security
-# sensitive.
-# ---------------------------------------------------------------------------
-# templates/emails/standard.html      -> overrides the default system-email
-#                                         wrapper (drops "Powered by Frappe").
-#                                         Block name used (`footer_brand`) is
-#                                         a best-known name — confirm it
-#                                         against your installed version (see
-#                                         Verification: source-search).
-#
-# The website footer's "Powered by ERPNext/Frappe" line did not get a
-# template override in this pass because its exact include path was not
-# independently re-verified against current source within this session's
-# research budget (see Residual Branding / Evidence Standard in the
-# accompanying report). Until confirmed, public/css/xunoia_whitelabel.css
-# hides it visually as a tier-7 fallback.
+# The active v16 loader resolves these exact paths from this app:
+# templates/emails/email_footer.html
+# templates/includes/footer/footer_powered.html
 
-doctype_js = {
-	# Placeholder for future per-doctype JS overrides (e.g. Print Format
-	# preview branding). Intentionally empty for v0.1.
-}
+doctype_js = {}
 
 fixtures = [
 	{

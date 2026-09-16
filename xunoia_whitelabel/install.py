@@ -8,24 +8,21 @@ Design constraints from the spec, and how each is met:
   - idempotent      -> every write below is preceded by a read; we only ever
                         write when the current DB value differs from the
                         target value, so a second/third/Nth run is a no-op.
-  - site-safe       -> only Xunoia-owned rows/doctypes are touched. Existing
-                        Navbar Settings rows this app did not create (e.g. an
-                        admin's own custom navbar links) are left alone.
+  - site-safe       -> only stock framework/ERPNext navbar rows and this app's
+                        own settings are touched. Administrator-created
+                        custom navbar links are left alone.
   - upgrade-conscious -> nothing here depends on a specific frappe/erpnext
                         version beyond the Navbar Settings / Navbar Item
                         doctypes existing (stable since v13).
   - minimally invasive -> no apps/frappe or apps/erpnext files are touched;
                         every write targets a doc this app owns
-                        (Xunoia Brand Settings) or a single named child row
-                        (the "Xunoia Support"/"Xunoia Documentation" navbar
-                        items), never a blanket table replace.
+                        (Xunoia Brand Settings) or known stock child rows
+                        (plus the Xunoia Documentation/Support rows), never a
+                        blanket table replacement.
 
-Note: removing the stock "Frappe Support" item from what the BROWSER sees is
-already handled non-destructively, on every boot, by boot.py's
-extend_bootinfo handler — nothing below needs to touch that row at all. What
-IS handled here is adding Xunoia's own navbar entries, which (unlike a
-removal) genuinely needs to be persisted, because they must survive being
-listed in Navbar Settings if an admin opens that doctype in the desk.
+The boot handler also removes the same stock rows from the in-memory payload.
+The persisted cleanup below is needed so migrations and administrators opening
+Navbar Settings do not recreate the customer-facing framework links.
 """
 
 import frappe
@@ -51,8 +48,10 @@ def _ensure_brand_settings():
 	settings = frappe.get_single("Xunoia Brand Settings")
 
 	defaults = {
-		"product_name": "Xunoia",
+		"product_name": "XunoiaERP",
 		"company_name": "Xunoia",
+		"logo": "/assets/xunoia_whitelabel/images/logo.png",
+		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
 		"website_url": "https://xunoia.com",
 		"documentation_url": "https://docs.xunoia.com",
 		"support_url": "https://support.xunoia.com",
@@ -60,13 +59,37 @@ def _ensure_brand_settings():
 
 	dirty = False
 	for fieldname, default_value in defaults.items():
-		if not settings.get(fieldname):
+		current_value = settings.get(fieldname)
+		if not current_value or (
+			fieldname == "product_name"
+			and current_value in {"Xunoia", "Frappe", "Frappe Framework", "ERPNext"}
+		):
 			settings.set(fieldname, default_value)
 			dirty = True
 
 	if dirty:
 		settings.flags.ignore_permissions = True
 		settings.save()
+
+	_set_customer_facing_app_names(settings)
+
+
+def _set_customer_facing_app_names(settings):
+	"""Set stock/default identity values without clobbering custom names."""
+	product_name = settings.product_name or "XunoiaERP"
+	for doctype in ("Website Settings", "System Settings"):
+		current = frappe.get_single_value(doctype, "app_name")
+		if not current or current in {"Xunoia", "Frappe", "Frappe Framework", "ERPNext"}:
+			frappe.db.set_single_value(doctype, "app_name", product_name)
+
+	navbar_settings = frappe.get_single("Navbar Settings")
+	if not navbar_settings.app_logo or navbar_settings.app_logo in {
+		"/assets/frappe/images/frappe-framework-logo.svg",
+		"/assets/erpnext/images/erpnext-logo.svg",
+	}:
+		navbar_settings.app_logo = settings.logo
+		navbar_settings.flags.ignore_permissions = True
+		navbar_settings.save()
 
 
 def _ensure_xunoia_navbar_items():
@@ -77,7 +100,29 @@ def _ensure_xunoia_navbar_items():
 	identically-labelled row) nothing is written.
 	"""
 	navbar_settings = frappe.get_single("Navbar Settings")
-	existing_labels = {row.item_label for row in navbar_settings.help_dropdown}
+	stock_labels = {
+		"Frappe Support",
+		"User Forum",
+		"Frappe School",
+		"Report an Issue",
+	}
+	stock_routes = {
+		"https://frappe.io/support",
+		"https://docs.erpnext.com/",
+		"https://discuss.frappe.io",
+		"https://frappe.io/school?utm_source=in_app",
+		"https://github.com/frappe/erpnext/issues",
+	}
+	kept_rows = [
+		row
+		for row in navbar_settings.help_dropdown
+		if row.item_label not in stock_labels and row.route not in stock_routes
+	]
+	removed_rows = len(kept_rows) != len(navbar_settings.help_dropdown)
+	if removed_rows:
+		navbar_settings.set("help_dropdown", kept_rows)
+
+	existing_labels = {row.item_label for row in kept_rows}
 
 	brand = frappe.get_single("Xunoia Brand Settings")
 	wanted_rows = [
@@ -96,11 +141,9 @@ def _ensure_xunoia_navbar_items():
 	]
 
 	rows_to_add = [row for row in wanted_rows if row["item_label"] not in existing_labels]
-	if not rows_to_add:
-		return  # already in the desired state — idempotent no-op
-
 	for row in rows_to_add:
 		navbar_settings.append("help_dropdown", row)
 
-	navbar_settings.flags.ignore_permissions = True
-	navbar_settings.save()
+	if rows_to_add or removed_rows:
+		navbar_settings.flags.ignore_permissions = True
+		navbar_settings.save()

@@ -2,11 +2,10 @@
 
 Customer-facing white-label branding for Frappe Framework v16 + ERPNext v16.
 
-`Frappe Framework + ERPNext + xunoia_whitelabel = Xunoia`
+`Frappe Framework + ERPNext + xunoia_whitelabel = XunoiaERP`
 
-See the accompanying engineering report for the full source audit, branding
-map, upgrade-safety analysis, and verification steps. This README covers
-only install/dev commands.
+The implementation keeps the source-of-truth audit in code comments and uses
+the supported Frappe hooks described below.
 
 ## Install
 
@@ -27,14 +26,14 @@ After install, open **Xunoia Brand Settings** in the desk (Awesomebar ->
 - Logo, Favicon
 - Website / Documentation / Support URLs
 
-Defaults (`Xunoia` / `https://xunoia.com` / …) are seeded automatically by
+Defaults (`XunoiaERP` / `Xunoia` / `https://xunoia.com` / …) are seeded automatically by
 `after_install` / `after_migrate` the first time, and never overwritten once
 you've changed them.
 
 ## Assets you must supply
 
-This repository ships no binary image assets. Add these before your first
-`bench build`:
+The repository includes default `logo.png` and `favicon.png` assets. Replace
+them with your production artwork before your first `pilot build` if needed:
 
 ```
 xunoia_whitelabel/public/images/logo.png
@@ -45,7 +44,13 @@ xunoia_whitelabel/public/images/favicon.png
 
 ## Development cycle
 
-See the report's "Pilot Workflow" section for the full breakdown of what
-needs reload vs. restart vs. migrate vs. asset build vs. browser refresh for
-each kind of change (Python / JS / CSS / DocType / boot).
+Pilot workflow:
+
+- Python, hooks, or boot changes: run `pilot frappe --site your-site migrate`
+  when configuration or DocTypes changed, then restart the development or
+  production workload as appropriate.
+- JavaScript/CSS changes: run `pilot build --apps xunoia_whitelabel` and clear
+  the site/browser cache.
+- Database branding changes: run the site migration; the app's hooks are
+  idempotent.
 # xunoia_whitelabel

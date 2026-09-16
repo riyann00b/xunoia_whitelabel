@@ -21,6 +21,9 @@ import frappe
 # an Xunoia-branded Desk.
 HIDDEN_HELP_ITEMS = {
 	"Frappe Support",
+	"User Forum",
+	"Frappe School",
+	"Report an Issue",
 }
 
 
@@ -30,10 +33,7 @@ RELABELLED_HELP_ITEMS = {
 	"About": {
 		"item_label": "About Xunoia",
 	},
-	"Documentation": {
-		"item_label": "Xunoia Documentation",
-		"route": None,
-	},
+	"Documentation": {"item_label": "Xunoia Documentation"},
 }
 
 
@@ -41,6 +41,7 @@ def boot_session(bootinfo):
 	"""Registered as `extend_bootinfo` in hooks.py."""
 	_strip_and_relabel_help_dropdown(bootinfo)
 	_inject_xunoia_branding(bootinfo)
+	_rebrand_app_data(bootinfo)
 
 
 def _strip_and_relabel_help_dropdown(bootinfo):
@@ -88,6 +89,15 @@ def _strip_and_relabel_help_dropdown(bootinfo):
 		navbar_settings.set("help_dropdown", kept_items)
 
 
+def _rebrand_app_data(bootinfo):
+	"""Replace framework/app labels and logos in Desk app metadata."""
+	branding = _get_branding()
+	for app in bootinfo.get("app_data") or []:
+		if app.get("app_name") in {"frappe", "erpnext", "xunoia_whitelabel"}:
+			app["app_title"] = branding["product_name"]
+			app["app_logo_url"] = branding["logo"]
+
+
 def _inject_xunoia_branding(bootinfo):
 	"""
 	Expose the centralized Xunoia branding configuration to Desk JavaScript.
@@ -96,15 +106,17 @@ def _inject_xunoia_branding(bootinfo):
 
 	    frappe.boot.xunoia.branding
 	"""
-	settings = frappe.get_cached_doc("Xunoia Brand Settings")
+	bootinfo.xunoia = {"branding": _get_branding()}
 
-	bootinfo.xunoia = {
-		"branding": {
-			"product_name": settings.product_name or "Xunoia",
-			"company_name": settings.company_name or "Xunoia",
-			"logo": settings.logo,
-			"website_url": settings.website_url,
-			"documentation_url": settings.documentation_url,
-			"support_url": settings.support_url,
-		}
+
+def _get_branding():
+	settings = frappe.get_cached_doc("Xunoia Brand Settings")
+	return {
+		"product_name": settings.product_name or "XunoiaERP",
+		"company_name": settings.company_name or "Xunoia",
+		"logo": settings.logo or "/assets/xunoia_whitelabel/images/logo.png",
+		"favicon": settings.favicon or "/assets/xunoia_whitelabel/images/favicon.png",
+		"website_url": settings.website_url or "https://xunoia.com",
+		"documentation_url": settings.documentation_url or "https://docs.xunoia.com",
+		"support_url": settings.support_url or "https://support.xunoia.com",
 	}
