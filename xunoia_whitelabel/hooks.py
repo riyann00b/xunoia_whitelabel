@@ -1,3 +1,14 @@
+# Applied at import time: hooks.py is reliably imported exactly once per
+# process (web, background worker, scheduler, console) before any request
+# is handled, which is what a process-wide monkeypatch needs.
+# SOURCE: apps/erpnext/erpnext/accounts/report/financial_statements.py
+# calls pypika's QueryBuilder.force_index(), which always emits MySQL's
+# `FORCE INDEX (...)` syntax -- a hard SyntaxError on PostgreSQL sites.
+# See xunoia_whitelabel/pg_compat.py for the full explanation.
+from xunoia_whitelabel import pg_compat as _pg_compat
+
+_pg_compat.apply()
+
 app_name = "xunoia_whitelabel"
 app_title = "XunoiaERP"
 app_publisher = "Xunoia Technologies Private Limited"
