@@ -32,6 +32,7 @@ def after_install():
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
 	_rebrand_erpnext_workspace_labels()
+	_hide_xunoia_self_icon()
 
 
 def after_migrate():
@@ -40,6 +41,7 @@ def after_migrate():
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
 	_rebrand_erpnext_workspace_labels()
+	_hide_xunoia_self_icon()
 
 
 def _ensure_brand_settings():
@@ -217,3 +219,31 @@ def _rebrand_erpnext_workspace_labels():
 				)
 				continue
 			frappe.db.set_value(doctype, docname, fieldname, target)
+
+
+def _hide_xunoia_self_icon():
+	"""
+	Hide the Desktop Icon Frappe auto-generates for this app itself.
+
+	frappe.utils.install.auto_generate_icons_and_sidebar() -- wired as
+	after_app_install, and also re-run once, for any site that hadn't
+	already had it, by the core patch
+	frappe.patches.v16_0.auto_generate_desktop_icon_and_sidebar -- creates a
+	Desktop Icon for every installed app that doesn't have one yet, reading
+	the `add_to_apps_screen` hook: label = app_title ("XunoiaERP"),
+	link_type "External", link = app_home ("/desk"). That's the right
+	behaviour for a framework with several genuinely separate installed
+	apps to switch between, but Xunoia is the whole product, not one tile
+	among several -- a self-referential "XunoiaERP" icon that just reloads
+	the page it's already on undermines the whitelabel and does nothing
+	useful for an end user.
+
+	Matched by the `app` field (stable regardless of label/product_name),
+	and only hidden, never deleted -- consistent with how the stock
+	"ERPNext" Desktop Icon already ships hidden rather than removed, and
+	keeps add_to_apps_screen itself intact for whatever else reads it
+	(e.g. the app switcher).
+	"""
+	icon_name = frappe.db.get_value("Desktop Icon", {"app": "xunoia_whitelabel"}, "name")
+	if icon_name and not frappe.db.get_value("Desktop Icon", icon_name, "hidden"):
+		frappe.db.set_value("Desktop Icon", icon_name, "hidden", 1)

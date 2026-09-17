@@ -1,1 +1,1 @@
-{{ _("Powered by {0}").format('<span class="text-muted">XunoiaERP</span>') }}
+{{ _("Powered by {0}").format('<span class="text-muted">' ~ (frappe.db.get_single_value("Xunoia Brand Settings", "product_name") or "XunoiaERP") ~ '</span>') }}

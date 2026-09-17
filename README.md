@@ -53,4 +53,3 @@ Pilot workflow:
   the site/browser cache.
 - Database branding changes: run the site migration; the app's hooks are
   idempotent.
-# xunoia_whitelabel
