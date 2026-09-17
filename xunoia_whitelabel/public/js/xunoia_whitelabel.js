@@ -59,10 +59,23 @@
 		$('link[rel="shortcut icon"], link[rel="icon"]').attr("href", brand.favicon);
 	}
 
-	frappe.after_ajax &&
-		frappe.after_ajax(function () {
-			$('[data-label="Frappe Support"], [data-label="User Forum"], [data-label="Frappe School"]')
-				.closest("li")
-				.remove();
-		});
+	// Frappe v16's top-right avatar/profile menu (desktop.js setup_avatar())
+	// builds its item list as a plain in-memory array and never touches
+	// bootinfo.navbar_settings, so the boot.py filter can't reach it there.
+	// Every Desk dropdown menu (avatar, sidebar header, breadcrumbs,
+	// workspace) is built through this one shared factory, so patching it
+	// here catches this menu -- and anywhere else these labels could
+	// reappear -- without a DOM-selector guess. (The previous `[data-label]`
+	// selector never matched anything: frappe's menu.js renders items as
+	// `<span class="menu-item-title">`, with no data-label attribute.)
+	if (frappe.ui && typeof frappe.ui.create_menu === "function") {
+		const hidden_labels = new Set((frappe.boot?.xunoia?.hidden_menu_labels) || []);
+		const original_create_menu = frappe.ui.create_menu;
+		frappe.ui.create_menu = function (opts) {
+			if (hidden_labels.size && Array.isArray(opts?.menu_items)) {
+				opts.menu_items = opts.menu_items.filter((item) => !hidden_labels.has(item?.label));
+			}
+			return original_create_menu.call(this, opts);
+		};
+	}
 })();

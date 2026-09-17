@@ -17,8 +17,8 @@ request uses the cached Xunoia Brand Settings document.
 import frappe
 
 
-# Stock Navbar Settings > Help Dropdown items that should never reach
-# an Xunoia-branded Desk.
+# Stock Navbar Settings items (Help Dropdown and Settings Dropdown) that
+# should never reach an Xunoia-branded Desk.
 HIDDEN_HELP_ITEMS = {
 	"Frappe Support",
 	"User Forum",
@@ -39,14 +39,16 @@ RELABELLED_HELP_ITEMS = {
 
 def boot_session(bootinfo):
 	"""Registered as `extend_bootinfo` in hooks.py."""
-	_strip_and_relabel_help_dropdown(bootinfo)
+	_strip_and_relabel_navbar_dropdown(bootinfo, "help_dropdown")
+	_strip_and_relabel_navbar_dropdown(bootinfo, "settings_dropdown")
 	_inject_xunoia_branding(bootinfo)
 	_rebrand_app_data(bootinfo)
 
 
-def _strip_and_relabel_help_dropdown(bootinfo):
+def _strip_and_relabel_navbar_dropdown(bootinfo, table_fieldname):
 	"""
-	Remove/relabel Help dropdown entries in the in-memory boot payload.
+	Remove/relabel entries in a Navbar Settings dropdown table
+	(`help_dropdown` or `settings_dropdown`) in the in-memory boot payload.
 
 	Navbar Settings is a Frappe Document object, not a plain dictionary.
 	Therefore `.get()` is used for reading and `.set()` is used for writing.
@@ -57,15 +59,15 @@ def _strip_and_relabel_help_dropdown(bootinfo):
 		# Guest/website boot payloads may not contain navbar_settings.
 		return
 
-	help_dropdown = navbar_settings.get("help_dropdown") or []
+	items = navbar_settings.get(table_fieldname) or []
 
-	if not help_dropdown:
+	if not items:
 		return
 
 	kept_items = []
 	changed = False
 
-	for item in help_dropdown:
+	for item in items:
 		label = item.get("item_label")
 
 		# Remove stock Frappe Support.
@@ -86,7 +88,7 @@ def _strip_and_relabel_help_dropdown(bootinfo):
 		kept_items.append(item)
 
 	if changed:
-		navbar_settings.set("help_dropdown", kept_items)
+		navbar_settings.set(table_fieldname, kept_items)
 
 
 def _rebrand_app_data(bootinfo):
@@ -105,8 +107,17 @@ def _inject_xunoia_branding(bootinfo):
 	Available to the browser as:
 
 	    frappe.boot.xunoia.branding
+	    frappe.boot.xunoia.hidden_menu_labels
 	"""
-	bootinfo.xunoia = {"branding": _get_branding()}
+	bootinfo.xunoia = {
+		"branding": _get_branding(),
+		# Frappe v16's avatar/profile menu (frappe/desk/page/desktop/desktop.js
+		# setup_avatar()) builds its items as a hardcoded JS array and never
+		# touches bootinfo.navbar_settings, so it can't be filtered here in
+		# Python. Exposing this set lets xunoia_whitelabel.js filter that menu
+		# too, off the same source of truth instead of a second hardcoded list.
+		"hidden_menu_labels": sorted(HIDDEN_HELP_ITEMS),
+	}
 
 
 def _get_branding():
