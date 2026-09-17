@@ -17,13 +17,20 @@ request uses the cached Xunoia Brand Settings document.
 import frappe
 
 
-# Stock Navbar Settings items (Help Dropdown and Settings Dropdown) that
-# should never reach an Xunoia-branded Desk.
+# Stock items that should never reach an Xunoia-branded Desk: Navbar
+# Settings rows (Help Dropdown / Settings Dropdown, matched by item_label)
+# and hardcoded avatar/profile-menu entries (matched by label via
+# hidden_menu_labels below).
 HIDDEN_HELP_ITEMS = {
 	"Frappe Support",
 	"User Forum",
 	"Frappe School",
 	"Report an Issue",
+	# Not a Navbar Settings row -- billing.bundle.js pushes this into the
+	# same avatar/profile menu (gated by frappe.boot.is_fc_site, normally
+	# inert unless fc_communication_secret is ever set). Filtered by the
+	# same frappe.ui.create_menu() label check as the rest of this set.
+	"Manage Billing",
 }
 
 
@@ -41,8 +48,37 @@ def boot_session(bootinfo):
 	"""Registered as `extend_bootinfo` in hooks.py."""
 	_strip_and_relabel_navbar_dropdown(bootinfo, "help_dropdown")
 	_strip_and_relabel_navbar_dropdown(bootinfo, "settings_dropdown")
+	_hide_cloud_settings(bootinfo)
 	_inject_xunoia_branding(bootinfo)
 	_rebrand_app_data(bootinfo)
+
+
+def _hide_cloud_settings(bootinfo):
+	"""
+	Force-disable the Cloud Settings desktop button for every session on
+	this Xunoia-branded Desk.
+
+	SOURCE: frappe/boot.py get_bootinfo() sets
+	    bootinfo.cloud_settings = get_cloud_settings_boot_context()
+	(frappe/integrations/frappe_providers/cloud_settings.py), which returns
+	{"enabled": True, ...} whenever site_config has pilot_endpoint +
+	pilot_auth_token AND the user has the System Manager role. Both are set
+	on this bench for real pilot backend functionality, so the credentials
+	themselves must stay -- clearing them would break pilot, not just this
+	button.
+
+	frappe/desk/page/desktop/desktop.js setup_cloud_settings() already
+	reads exactly this `enabled` flag before unhiding `.desktop-cloud-settings`
+	and fetching pilot's embed bundle. Forcing it false here in the
+	in-memory boot payload (same technique as
+	_strip_and_relabel_navbar_dropdown above) is the exact kill switch the
+	stock client code was built to respect: the button never unhides and
+	the embed bundle is never fetched. No change to frappe.conf; no effect
+	on any whitelisted RPC that re-checks is_cloud_settings_enabled()
+	server-side.
+	"""
+	if bootinfo.get("cloud_settings"):
+		bootinfo.cloud_settings = {"enabled": False}
 
 
 def _strip_and_relabel_navbar_dropdown(bootinfo, table_fieldname):

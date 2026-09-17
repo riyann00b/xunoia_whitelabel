@@ -72,6 +72,18 @@
 		const hidden_labels = new Set((frappe.boot?.xunoia?.hidden_menu_labels) || []);
 		const original_create_menu = frappe.ui.create_menu;
 		frappe.ui.create_menu = function (opts) {
+			// The Desktop page's only two right-click menus (desktop.js
+			// setup_context_menu() "Edit Layout"/"Reset Layout", and
+			// setup_edit_menu() per-icon "Edit") are built through this same
+			// factory with `right_click: true`, and neither is gated by a
+			// role/permission check in core -- any logged-in user gets them.
+			// Nothing else in frappe or erpnext passes right_click (checked),
+			// so skipping construction entirely here -- no listener ever gets
+			// bound, see menu.js setup_menu_toggle() -- hides both surfaces
+			// for every end user with no DOM/CSS guess.
+			if (opts?.right_click) {
+				return undefined;
+			}
 			if (hidden_labels.size && Array.isArray(opts?.menu_items)) {
 				opts.menu_items = opts.menu_items.filter((item) => !hidden_labels.has(item?.label));
 			}
