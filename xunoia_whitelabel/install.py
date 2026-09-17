@@ -31,6 +31,7 @@ import frappe
 def after_install():
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
+	_rebrand_erpnext_workspace_labels()
 
 
 def after_migrate():
@@ -38,6 +39,7 @@ def after_migrate():
 	# `bench migrate` / `pilot site migrate` — see module docstring.
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
+	_rebrand_erpnext_workspace_labels()
 
 
 def _ensure_brand_settings():
@@ -147,3 +149,48 @@ def _ensure_xunoia_navbar_items():
 	if rows_to_add or removed_rows:
 		navbar_settings.flags.ignore_permissions = True
 		navbar_settings.save()
+
+
+def _rebrand_erpnext_workspace_labels():
+	"""
+	Relabel stock ERPNext-branded Workspace/sidebar entries so "ERPNext
+	Settings" (the last tile in the Workspaces list) reads as
+	"<product_name> Settings" instead.
+
+	v16 ships that one visible tile as three separate records that must
+	all agree:
+	  - Desktop Icon "ERPNext Settings"      -> the tile itself, shown in
+	    the Workspaces list (erpnext/desktop_icon/erpnext_settings.json)
+	  - Workspace Sidebar "ERPNext Settings" -> the left-sidebar tree shown
+	    once that tile is opened (erpnext/workspace_sidebar/erpnext_settings.json)
+	  - Workspace "ERPNext Settings"         -> the underlying workspace
+	    page (erpnext/setup/workspace/erpnext_settings/erpnext_settings.json)
+	Plus the top-level "ERPNext" Desktop Icon (erpnext/desktop_icon/erpnext.json),
+	hidden by default so it isn't in the list today, but relabelled too in
+	case it's ever unhidden.
+
+	Docnames are left untouched -- only label/title display fields change --
+	so the Desktop Icon's own `link_to: "ERPNext Settings"` (a name
+	reference to the Workspace Sidebar record) keeps resolving correctly.
+	Matched against the known stock label so an administrator's own rename
+	is never clobbered; same idempotent, read-before-write approach as the
+	rest of this module.
+	"""
+	brand = frappe.get_single("Xunoia Brand Settings")
+	product_name = brand.product_name or "XunoiaERP"
+
+	# (doctype, docname, fieldnames, target label, stock labels safe to overwrite)
+	targets = [
+		("Desktop Icon", "ERPNext Settings", ("label",), f"{product_name} Settings", {"ERPNext Settings"}),
+		("Workspace Sidebar", "ERPNext Settings", ("title",), f"{product_name} Settings", {"ERPNext Settings"}),
+		("Workspace", "ERPNext Settings", ("label", "title"), f"{product_name} Settings", {"ERPNext Settings"}),
+		("Desktop Icon", "ERPNext", ("label",), product_name, {"ERPNext"}),
+	]
+
+	for doctype, docname, fieldnames, target, stock_labels in targets:
+		if not frappe.db.exists(doctype, docname):
+			continue
+		for fieldname in fieldnames:
+			current = frappe.db.get_value(doctype, docname, fieldname)
+			if current in stock_labels and current != target:
+				frappe.db.set_value(doctype, docname, fieldname, target)
