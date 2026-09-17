@@ -165,9 +165,6 @@ def _rebrand_erpnext_workspace_labels():
 	    once that tile is opened (erpnext/workspace_sidebar/erpnext_settings.json)
 	  - Workspace "ERPNext Settings"         -> the underlying workspace
 	    page (erpnext/setup/workspace/erpnext_settings/erpnext_settings.json)
-	Plus the top-level "ERPNext" Desktop Icon (erpnext/desktop_icon/erpnext.json),
-	hidden by default so it isn't in the list today, but relabelled too in
-	case it's ever unhidden.
 
 	Docnames are left untouched -- only label/title display fields change --
 	so the Desktop Icon's own `link_to: "ERPNext Settings"` (a name
@@ -175,22 +172,48 @@ def _rebrand_erpnext_workspace_labels():
 	Matched against the known stock label so an administrator's own rename
 	is never clobbered; same idempotent, read-before-write approach as the
 	rest of this module.
+
+	CAUTION: Desktop Icon.label, Workspace.label and Workspace Sidebar.title
+	are each `autoname: field:<that field>` with a DB-level unique
+	constraint -- writing a value already claimed by a different row raises
+	IntegrityError and, since `after_migrate` hooks run inside migrate.py's
+	@atomic post_schema_updates(), aborts and rolls back the *entire*
+	migrate data-sync phase for every app, not just this write. Every write
+	below checks for that collision first and skips (never raises) if the
+	target is already taken by another row.
+
+	There is no fourth target relabelling the hidden top-level "ERPNext"
+	Desktop Icon to the bare product_name: Frappe's after_app_install hook
+	(frappe.utils.install.auto_generate_icons_and_sidebar) already creates
+	a Desktop Icon for this app itself, labelled from app_title ("XunoiaERP"
+	per hooks.py) -- so that value is permanently owned by this app's own
+	self-icon on any correctly-installed site, and attempting it here always
+	collides (confirmed: this is what broke production migrate.py, before
+	the skip-on-collision guard above existed).
 	"""
 	brand = frappe.get_single("Xunoia Brand Settings")
 	product_name = brand.product_name or "XunoiaERP"
+	target = f"{product_name} Settings"
+	stock_labels = {"ERPNext Settings"}
 
-	# (doctype, docname, fieldnames, target label, stock labels safe to overwrite)
+	# (doctype, docname, fieldnames to relabel)
 	targets = [
-		("Desktop Icon", "ERPNext Settings", ("label",), f"{product_name} Settings", {"ERPNext Settings"}),
-		("Workspace Sidebar", "ERPNext Settings", ("title",), f"{product_name} Settings", {"ERPNext Settings"}),
-		("Workspace", "ERPNext Settings", ("label", "title"), f"{product_name} Settings", {"ERPNext Settings"}),
-		("Desktop Icon", "ERPNext", ("label",), product_name, {"ERPNext"}),
+		("Desktop Icon", "ERPNext Settings", ("label",)),
+		("Workspace Sidebar", "ERPNext Settings", ("title",)),
+		("Workspace", "ERPNext Settings", ("label", "title")),
 	]
 
-	for doctype, docname, fieldnames, target, stock_labels in targets:
+	for doctype, docname, fieldnames in targets:
 		if not frappe.db.exists(doctype, docname):
 			continue
 		for fieldname in fieldnames:
 			current = frappe.db.get_value(doctype, docname, fieldname)
-			if current in stock_labels and current != target:
-				frappe.db.set_value(doctype, docname, fieldname, target)
+			if current not in stock_labels or current == target:
+				continue
+			if frappe.db.exists(doctype, {fieldname: target}):
+				print(
+					f"xunoia_whitelabel: skipped setting {doctype} {docname}.{fieldname} "
+					f"to {target!r} -- already in use by another {doctype} record."
+				)
+				continue
+			frappe.db.set_value(doctype, docname, fieldname, target)
