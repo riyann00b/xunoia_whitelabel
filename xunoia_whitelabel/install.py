@@ -27,6 +27,13 @@ Navbar Settings do not recreate the customer-facing framework links.
 
 import frappe
 
+# Stock Desktop Icon / Workspace / Workspace Sidebar labels this app
+# relabels (see _rebrand_erpnext_workspace_labels, _rebrand_hrms_desktop_icon).
+# Shared with _scrub_stale_desktop_layouts() so a future relabel target is
+# automatically covered by the stale-layout cleanup too -- adding a label
+# here only, without also wiring a rebrand function, does nothing.
+RELABELLED_STOCK_LABELS = {"ERPNext Settings", "Frappe HR"}
+
 
 def after_install():
 	_ensure_brand_settings()
@@ -34,6 +41,7 @@ def after_install():
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
 	_rebrand_hrms_desktop_icon()
+	_scrub_stale_desktop_layouts()
 
 
 def after_migrate():
@@ -44,6 +52,7 @@ def after_migrate():
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
 	_rebrand_hrms_desktop_icon()
+	_scrub_stale_desktop_layouts()
 
 
 def _ensure_brand_settings():
@@ -190,7 +199,7 @@ def _rebrand_erpnext_workspace_labels():
 	brand = frappe.get_single("Xunoia Brand Settings")
 	product_name = brand.product_name or "XunoiaERP"
 	target = f"{product_name} Settings"
-	stock_labels = {"ERPNext Settings"}
+	stock_labels = {"ERPNext Settings"}  # subset of RELABELLED_STOCK_LABELS
 
 	# (doctype, docname, fieldnames to relabel)
 	targets = [
@@ -288,4 +297,47 @@ def _rebrand_hrms_desktop_icon():
 	"""
 	brand = frappe.get_single("Xunoia Brand Settings")
 	hr_product_name = brand.hr_product_name or "XunoiaHR"
+	# {"Frappe HR"}: subset of RELABELLED_STOCK_LABELS
 	_set_unique_label_if_stock("Desktop Icon", "Frappe HR", "label", hr_product_name, {"Frappe HR"})
+
+
+def _scrub_stale_desktop_layouts():
+	"""
+	Delete any per-user Desktop Layout snapshot that still contains a stock
+	label this app relabels (RELABELLED_STOCK_LABELS).
+
+	Desktop Layout stores a full JSON *snapshot* of a user's customized icon
+	list -- including each icon's label at save time -- not just a
+	reference back to the live Desktop Icon table
+	(frappe/desk/page/desktop/desktop.js sync_layout():
+	`frappe.desktop_icons = this.data` overrides the freshly-relabelled
+	`frappe.boot.desktop_icons` with that frozen snapshot whenever one
+	exists). So a user who loaded the desk before a relabel keeps seeing
+	the old label forever, even though every write above already succeeded
+	-- confirmed live: frappe.boot.desktop_icons showed the correct new
+	label while the rendered DOM still showed the old one, because the
+	user's saved layout overrode it.
+
+	Deleting the stale snapshot -- rather than patching the label inside
+	its JSON blob -- is the same "reset to default" action
+	frappe.desk.doctype.desktop_layout.desktop_layout.delete_layout already
+	exposes; it falls back to the correct live boot data on next load. The
+	affected user's custom arrangement (order, hidden icons) is lost and
+	would need to be redone once; there's no way to preserve it while also
+	fixing the frozen label text without depending on this table's
+	internal JSON shape, which Frappe owns and doesn't document as stable.
+
+	This only clears the server-side copy. The client also mirrors it in
+	localStorage (`${user}:desktop`), which re-uploads itself back to the
+	server on next load if not also cleared from the browser -- a stale
+	layout found here means the affected user should also clear that key
+	(or just click "Reset Layout" again after this runs, which clears
+	both).
+	"""
+	stale_layouts = frappe.get_all(
+		"Desktop Layout",
+		or_filters=[["layout", "like", f"%{label}%"] for label in RELABELLED_STOCK_LABELS],
+		pluck="name",
+	)
+	for name in stale_layouts:
+		frappe.db.delete("Desktop Layout", {"name": name})
