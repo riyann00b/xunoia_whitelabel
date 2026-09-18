@@ -34,14 +34,6 @@ import frappe
 # here only, without also wiring a rebrand function, does nothing.
 RELABELLED_STOCK_LABELS = {"ERPNext Settings", "Frappe HR"}
 
-# Superset of RELABELLED_STOCK_LABELS: also includes stale *field values*
-# (not just labels) this app corrects on a stock Desktop Icon/Workspace/
-# Workspace Sidebar record -- e.g. the broken "/desk/people" link fixed by
-# _fix_hrms_desktop_icon_link(). A user's Desktop Layout snapshot can go
-# stale on any corrected field, not only label/title, so the cleanup in
-# _scrub_stale_desktop_layouts() searches this wider set.
-STALE_DESKTOP_LAYOUT_MARKERS = RELABELLED_STOCK_LABELS | {"/desk/people"}
-
 
 def after_install():
 	_ensure_brand_settings()
@@ -49,7 +41,6 @@ def after_install():
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
 	_rebrand_hrms_desktop_icon()
-	_fix_hrms_desktop_icon_link()
 	_scrub_stale_desktop_layouts()
 
 
@@ -61,7 +52,6 @@ def after_migrate():
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
 	_rebrand_hrms_desktop_icon()
-	_fix_hrms_desktop_icon_link()
 	_scrub_stale_desktop_layouts()
 
 
@@ -311,42 +301,10 @@ def _rebrand_hrms_desktop_icon():
 	_set_unique_label_if_stock("Desktop Icon", "Frappe HR", "label", hr_product_name, {"Frappe HR"})
 
 
-def _fix_hrms_desktop_icon_link():
-	"""
-	Repoint the stock "Frappe HR" Desktop Icon's link from the broken
-	/desk/people to /app/employee (the Employee list -- a core HR doctype
-	guaranteed to exist regardless of hrms version/setup; every DocType
-	gets a /app/<slug> route registered by frappe/public/js/frappe/router.js,
-	so this isn't specific to Employee).
-
-	hrms/desktop_icon/frappe_hr.json ships `link: "/desk/people"`
-	unconditionally -- confirmed identical on both the `develop` and
-	`version-16` branches -- but hrms does not ship a "People" Workspace or
-	Workspace Sidebar fixture anywhere in its own source. The only mention
-	of "People" in the whole hrms codebase is
-	patches/v16_0/make_people_workspace_sidebar_standard.py, which only
-	flags an *existing* "People" Workspace Sidebar as standard -- it never
-	creates one. Confirmed on production (HR & Payroll v16.15.0,
-	version-16 branch): no Workspace or Workspace Sidebar named "People"
-	exists there, so the tile 404s. This is a pre-existing hrms gap, not
-	something this app's relabeling caused -- _rebrand_hrms_desktop_icon()
-	only ever touches `label`, never `link`/`link_type`.
-
-	Matched against the known broken stock link so an administrator's own
-	fix is never clobbered; idempotent, same read-before-write pattern as
-	the rest of this module. No unique-constraint risk here (unlike label/
-	title): `link` isn't part of Desktop Icon's autoname.
-	"""
-	current = frappe.db.get_value("Desktop Icon", "Frappe HR", "link")
-	if current == "/desk/people":
-		frappe.db.set_value("Desktop Icon", "Frappe HR", "link", "/app/employee")
-
-
 def _scrub_stale_desktop_layouts():
 	"""
 	Delete any per-user Desktop Layout snapshot that still contains a stock
-	value this app corrects (STALE_DESKTOP_LAYOUT_MARKERS: relabelled
-	labels, plus corrected field values like the /desk/people link fix).
+	label this app relabels (RELABELLED_STOCK_LABELS).
 
 	Desktop Layout stores a full JSON *snapshot* of a user's customized icon
 	list -- including each icon's label at save time -- not just a
@@ -378,7 +336,7 @@ def _scrub_stale_desktop_layouts():
 	"""
 	stale_layouts = frappe.get_all(
 		"Desktop Layout",
-		or_filters=[["layout", "like", f"%{marker}%"] for marker in STALE_DESKTOP_LAYOUT_MARKERS],
+		or_filters=[["layout", "like", f"%{label}%"] for label in RELABELLED_STOCK_LABELS],
 		pluck="name",
 	)
 	for name in stale_layouts:
