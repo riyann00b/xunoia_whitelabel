@@ -33,6 +33,8 @@ def after_install():
 	_ensure_xunoia_navbar_items()
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
+	_restore_hrms_desktop_icon_label()
+	_ensure_brand_translations()
 
 
 def after_migrate():
@@ -42,6 +44,8 @@ def after_migrate():
 	_ensure_xunoia_navbar_items()
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
+	_restore_hrms_desktop_icon_label()
+	_ensure_brand_translations()
 
 
 def _ensure_brand_settings():
@@ -53,6 +57,7 @@ def _ensure_brand_settings():
 
 	defaults = {
 		"product_name": "XunoiaERP",
+		"hr_product_name": "XunoiaHR",
 		"company_name": "Xunoia",
 		"logo": "/assets/xunoia_whitelabel/images/logo.png",
 		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
@@ -247,3 +252,91 @@ def _hide_xunoia_self_icon():
 	icon_name = frappe.db.get_value("Desktop Icon", {"app": "xunoia_whitelabel"}, "name")
 	if icon_name and not frappe.db.get_value("Desktop Icon", icon_name, "hidden"):
 		frappe.db.set_value("Desktop Icon", icon_name, "hidden", 1)
+
+
+def _restore_hrms_desktop_icon_label():
+	"""
+	Put the "Frappe HR" Desktop Icon's label back to stock if an earlier
+	version of this app renamed it in the database.
+
+	That version wrote the brand name straight into `Desktop Icon.label`.
+	Reverting the code does not undo the write, so a site that ran it keeps
+	a row named "Frappe HR" labelled "XunoiaHR". The desktop UI matches the
+	nine child tiles to their parent by comparing their `parent_icon`
+	("Frappe HR") with the parent's label (desktop.js prepare()), so that
+	row must carry its stock label again -- the rebrand is now done by a
+	Translation (see _ensure_brand_translations) and needs the label intact.
+
+	Deliberately narrow: only acts when the current label is exactly the
+	HR brand name this app would have written, so a label an administrator
+	chose themselves is left alone, and never when another row already owns
+	the stock label (Desktop Icon.label is unique). A site that never ran the
+	old code, or has no hrms, does nothing.
+	"""
+	brand = frappe.get_single("Xunoia Brand Settings")
+	written_by_old_version = brand.hr_product_name or "XunoiaHR"
+	current = frappe.db.get_value("Desktop Icon", "Frappe HR", "label")
+	if current == written_by_old_version and not frappe.db.exists("Desktop Icon", {"label": "Frappe HR"}):
+		frappe.db.set_value("Desktop Icon", "Frappe HR", "label", "Frappe HR")
+
+
+def _ensure_brand_translations():
+	"""
+	Rebrand stock Frappe strings that reach the Desk through __() by adding
+	Translation records, instead of editing the data they are read from.
+
+	Used for the Frappe HR (hrms) desktop tile. The tile title and its
+	tooltip are rendered as `__(icon.label)`
+	(frappe/public/js/frappe/ui/desktop_icon.html), so a Translation of
+	"Frappe HR" changes what is displayed while `Desktop Icon.label` stays
+	"Frappe HR". That matters: Desktop Icon.label is also its docname
+	(autoname: field:label) and the desktop UI matches on it --
+	`icon_map[icon.label]` / `parent_icon` in desktop.js prepare() attaches
+	the nine HR child tiles to their parent, and get_route() looks sidebars
+	up by `icon.label.toLowerCase()`. Relabelling the row would detach the
+	children and break routing; a Translation cannot.
+
+	Translations are delivered to the browser for every language, English
+	included (boot.py: bootinfo.__messages = get_all_translations(lang)),
+	and user Translation records override the app's own. Because the data
+	is never changed, a user's saved Desktop Layout snapshot cannot show a
+	stale label either.
+
+	Idempotent and non-clobbering: a (language, source text) pair that
+	already has a Translation is left alone, so an administrator's own
+	wording is never overwritten. Creating the record through the ORM runs
+	Translation.on_update, which clears the translation caches. Does nothing
+	visible on a site without hrms: no rendered string matches the source.
+	"""
+	brand = frappe.get_single("Xunoia Brand Settings")
+	translations = {
+		"Frappe HR": brand.hr_product_name or "XunoiaHR",
+	}
+
+	for language in _languages_in_use():
+		for source_text, translated_text in translations.items():
+			if frappe.db.exists("Translation", {"language": language, "source_text": source_text}):
+				continue
+			frappe.get_doc(
+				{
+					"doctype": "Translation",
+					"language": language,
+					"source_text": source_text,
+					"translated_text": translated_text,
+				}
+			).insert(ignore_permissions=True)
+
+
+def _languages_in_use():
+	"""English, the site language and every language an enabled user has chosen.
+
+	User translations are looked up per language (and its parent, so "en-US"
+	falls back to "en"), so each language in use needs its own record.
+	"""
+	languages = {"en"}
+	if system_language := frappe.get_system_settings("language"):
+		languages.add(system_language)
+	languages.update(
+		frappe.get_all("User", filters={"enabled": 1, "language": ["is", "set"]}, pluck="language")
+	)
+	return sorted(language for language in languages if frappe.db.exists("Language", language))

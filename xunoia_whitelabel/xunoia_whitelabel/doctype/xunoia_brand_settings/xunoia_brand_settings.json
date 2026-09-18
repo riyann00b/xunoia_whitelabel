@@ -6,6 +6,7 @@
  "field_order": [
   "brand_section",
   "product_name",
+  "hr_product_name",
   "company_name",
   "column_break_brand",
   "logo",
@@ -28,6 +29,12 @@
    "fieldtype": "Data",
    "label": "Product Name",
    "reqd": 1
+  },
+  {
+   "description": "Replaces \"Frappe HR\" in the Desk. The desktop tile uses a Translation record created on migrate; if you change this later, update that Translation record too.",
+   "fieldname": "hr_product_name",
+   "fieldtype": "Data",
+   "label": "HR Product Name"
   },
   {
    "fieldname": "company_name",

@@ -9,6 +9,7 @@
 	function show_about() {
 		const b = get_branding();
 		const product_name = escape_html(b.product_name || "XunoiaERP");
+		const hr_product_name = escape_html(b.hr_product_name || "XunoiaHR");
 		const company_name = escape_html(b.company_name || "Xunoia");
 		const logo = escape_html(b.logo);
 		const links = [
@@ -23,7 +24,8 @@
 		const versions_html = Object.entries(frappe.boot.versions || {})
 			.filter(([app]) => !["frappe", "xunoia_whitelabel"].includes(app))
 			.map(([app, version]) => {
-				const label = app === "erpnext" ? product_name : escape_html(app);
+				const label =
+					app === "erpnext" ? product_name : app === "hrms" ? hr_product_name : escape_html(app);
 				return `<li>${label}: v${escape_html(version)}</li>`;
 			})
 			.join("");
