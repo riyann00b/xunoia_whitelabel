@@ -33,7 +33,6 @@ def after_install():
 	_ensure_xunoia_navbar_items()
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
-	_rebrand_hrms_desktop_icon()
 
 
 def after_migrate():
@@ -43,7 +42,6 @@ def after_migrate():
 	_ensure_xunoia_navbar_items()
 	_rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
-	_rebrand_hrms_desktop_icon()
 
 
 def _ensure_brand_settings():
@@ -55,7 +53,6 @@ def _ensure_brand_settings():
 
 	defaults = {
 		"product_name": "XunoiaERP",
-		"hr_product_name": "XunoiaHR",
 		"company_name": "Xunoia",
 		"logo": "/assets/xunoia_whitelabel/images/logo.png",
 		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
@@ -175,8 +172,17 @@ def _rebrand_erpnext_workspace_labels():
 	so the Desktop Icon's own `link_to: "ERPNext Settings"` (a name
 	reference to the Workspace Sidebar record) keeps resolving correctly.
 	Matched against the known stock label so an administrator's own rename
-	is never clobbered; writes go through _set_unique_label_if_stock(),
-	which also guards the unique-constraint collision documented there.
+	is never clobbered; same idempotent, read-before-write approach as the
+	rest of this module.
+
+	CAUTION: Desktop Icon.label, Workspace.label and Workspace Sidebar.title
+	are each `autoname: field:<that field>` with a DB-level unique
+	constraint -- writing a value already claimed by a different row raises
+	IntegrityError and, since `after_migrate` hooks run inside migrate.py's
+	@atomic post_schema_updates(), aborts and rolls back the *entire*
+	migrate data-sync phase for every app, not just this write. Every write
+	below checks for that collision first and skips (never raises) if the
+	target is already taken by another row.
 
 	There is no fourth target relabelling the hidden top-level "ERPNext"
 	Desktop Icon to the bare product_name: Frappe's after_app_install hook
@@ -200,40 +206,19 @@ def _rebrand_erpnext_workspace_labels():
 	]
 
 	for doctype, docname, fieldnames in targets:
+		if not frappe.db.exists(doctype, docname):
+			continue
 		for fieldname in fieldnames:
-			_set_unique_label_if_stock(doctype, docname, fieldname, target, stock_labels)
-
-
-def _set_unique_label_if_stock(doctype, docname, fieldname, target, stock_labels):
-	"""
-	Write `target` to `fieldname` on `doctype`/`docname`, but only when:
-	  - the record exists,
-	  - its current value is a known stock default (never clobbers an
-	    administrator's own rename), and
-	  - no *other* row already owns `target`.
-
-	That last check matters because Desktop Icon.label, Workspace.label and
-	Workspace Sidebar.title are each `autoname: field:<that field>` with a
-	DB-level unique constraint -- writing a value already claimed by a
-	different row raises IntegrityError and, since `after_migrate` hooks run
-	inside migrate.py's @atomic post_schema_updates(), aborts and rolls back
-	the *entire* migrate data-sync phase for every app, not just this write
-	(confirmed: this is exactly what broke a production `bench migrate`
-	before this guard existed). Skips with a printed note instead of
-	raising if that happens.
-	"""
-	if not frappe.db.exists(doctype, docname):
-		return
-	current = frappe.db.get_value(doctype, docname, fieldname)
-	if current not in stock_labels or current == target:
-		return
-	if frappe.db.exists(doctype, {fieldname: target}):
-		print(
-			f"xunoia_whitelabel: skipped setting {doctype} {docname}.{fieldname} "
-			f"to {target!r} -- already in use by another {doctype} record."
-		)
-		return
-	frappe.db.set_value(doctype, docname, fieldname, target)
+			current = frappe.db.get_value(doctype, docname, fieldname)
+			if current not in stock_labels or current == target:
+				continue
+			if frappe.db.exists(doctype, {fieldname: target}):
+				print(
+					f"xunoia_whitelabel: skipped setting {doctype} {docname}.{fieldname} "
+					f"to {target!r} -- already in use by another {doctype} record."
+				)
+				continue
+			frappe.db.set_value(doctype, docname, fieldname, target)
 
 
 def _hide_xunoia_self_icon():
@@ -262,30 +247,3 @@ def _hide_xunoia_self_icon():
 	icon_name = frappe.db.get_value("Desktop Icon", {"app": "xunoia_whitelabel"}, "name")
 	if icon_name and not frappe.db.get_value("Desktop Icon", icon_name, "hidden"):
 		frappe.db.set_value("Desktop Icon", icon_name, "hidden", 1)
-
-
-def _rebrand_hrms_desktop_icon():
-	"""
-	Relabel the stock "Frappe HR" Desktop Icon -- the HR tile in the
-	Workspaces list (hrms/desktop_icon/frappe_hr.json, link: /desk/people)
-	-- to hr_product_name ("XunoiaHR" by default).
-
-	Unlike this app's own self-icon (_hide_xunoia_self_icon), this one is a
-	real, useful navigation tile, so it's relabelled rather than hidden --
-	same treatment as _rebrand_erpnext_workspace_labels, but a distinct
-	brand name (hr_product_name, not product_name), since Xunoia sells HR
-	as its own named module rather than folding it into the main product
-	name.
-
-	Every other stock hrms Desktop Icon (hr_setup, payroll, expenses,
-	leaves, shift_&_attendance, performance, tax_&_benefits, tenure,
-	recruitment) references this one by docname via `"parent_icon":
-	"Frappe HR"` -- since only the label changes here, never the docname,
-	those references keep resolving with no further changes needed.
-
-	No-ops entirely if hrms isn't installed on this site (Desktop Icon
-	"Frappe HR" won't exist) -- see _set_unique_label_if_stock.
-	"""
-	brand = frappe.get_single("Xunoia Brand Settings")
-	hr_product_name = brand.hr_product_name or "XunoiaHR"
-	_set_unique_label_if_stock("Desktop Icon", "Frappe HR", "label", hr_product_name, {"Frappe HR"})

@@ -131,14 +131,8 @@ def _rebrand_app_data(bootinfo):
 	"""Replace framework/app labels and logos in Desk app metadata."""
 	branding = _get_branding()
 	for app in bootinfo.get("app_data") or []:
-		app_name = app.get("app_name")
-		if app_name in {"frappe", "erpnext", "xunoia_whitelabel"}:
+		if app.get("app_name") in {"frappe", "erpnext", "xunoia_whitelabel"}:
 			app["app_title"] = branding["product_name"]
-			app["app_logo_url"] = branding["logo"]
-		elif app_name == "hrms":
-			# HR is sold as its own named module (hr_product_name), distinct
-			# from the main product_name -- see Xunoia Brand Settings.
-			app["app_title"] = branding["hr_product_name"]
 			app["app_logo_url"] = branding["logo"]
 
 
@@ -166,7 +160,6 @@ def _get_branding():
 	settings = frappe.get_cached_doc("Xunoia Brand Settings")
 	return {
 		"product_name": settings.product_name or "XunoiaERP",
-		"hr_product_name": settings.hr_product_name or "XunoiaHR",
 		"company_name": settings.company_name or "Xunoia",
 		"logo": settings.logo or "/assets/xunoia_whitelabel/images/logo.png",
 		"favicon": settings.favicon or "/assets/xunoia_whitelabel/images/favicon.png",

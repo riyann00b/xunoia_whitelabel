@@ -6,7 +6,6 @@
  "field_order": [
   "brand_section",
   "product_name",
-  "hr_product_name",
   "company_name",
   "column_break_brand",
   "logo",
@@ -29,12 +28,6 @@
    "fieldtype": "Data",
    "label": "Product Name",
    "reqd": 1
-  },
-  {
-   "description": "Shown wherever the Frappe HR / \"hrms\" app's own identity would otherwise appear (Desktop Icon tile, app switcher, About dialog) — kept separate from Product Name since HR is sold as its own named module.",
-   "fieldname": "hr_product_name",
-   "fieldtype": "Data",
-   "label": "HR Product Name"
   },
   {
    "fieldname": "company_name",
