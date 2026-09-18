@@ -72,6 +72,7 @@
 	// `<span class="menu-item-title">`, with no data-label attribute.)
 	if (frappe.ui && typeof frappe.ui.create_menu === "function") {
 		const hidden_labels = new Set((frappe.boot?.xunoia?.hidden_menu_labels) || []);
+		const disable_desk_right_click = frappe.boot?.xunoia?.disable_desk_right_click !== false;
 		const original_create_menu = frappe.ui.create_menu;
 		frappe.ui.create_menu = function (opts) {
 			// The Desktop page's only two right-click menus (desktop.js
@@ -83,7 +84,7 @@
 			// so skipping construction entirely here -- no listener ever gets
 			// bound, see menu.js setup_menu_toggle() -- hides both surfaces
 			// for every end user with no DOM/CSS guess.
-			if (opts?.right_click) {
+			if (disable_desk_right_click && opts?.right_click) {
 				return undefined;
 			}
 			if (hidden_labels.size && Array.isArray(opts?.menu_items)) {

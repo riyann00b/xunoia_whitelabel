@@ -11,7 +11,9 @@
   "column_break_brand",
   "logo",
   "favicon",
-  "links_section",
+ "desk_section",
+ "disable_desk_right_click",
+ "links_section",
   "website_url",
   "column_break_links",
   "documentation_url",
@@ -55,6 +57,18 @@
    "fieldname": "favicon",
    "fieldtype": "Attach Image",
    "label": "Favicon"
+  },
+  {
+   "fieldname": "desk_section",
+   "fieldtype": "Section Break",
+   "label": "Desk Settings"
+  },
+  {
+   "default": "1",
+   "description": "When enabled, users cannot open the Desk layout and icon menus with right-click.",
+   "fieldname": "disable_desk_right_click",
+   "fieldtype": "Check",
+   "label": "Disable Desk Right Click"
   },
   {
    "fieldname": "links_section",

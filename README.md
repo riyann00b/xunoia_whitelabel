@@ -24,6 +24,7 @@ After install, open **Xunoia Brand Settings** in the desk (Awesomebar ->
 
 - Product Name, Company Name
 - Logo, Favicon
+- Disable Desk Right Click
 - Website / Documentation / Support URLs
 
 Defaults (`XunoiaERP` / `Xunoia` / `https://xunoia.com` / …) are seeded automatically by

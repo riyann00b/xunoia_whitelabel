@@ -61,6 +61,7 @@ def _ensure_brand_settings():
 		"company_name": "Xunoia",
 		"logo": "/assets/xunoia_whitelabel/images/logo.png",
 		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
+		"disable_desk_right_click": 1,
 		"website_url": "https://xunoia.com",
 		"documentation_url": "https://docs.xunoia.com",
 		"support_url": "https://support.xunoia.com",

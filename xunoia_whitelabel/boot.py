@@ -150,9 +150,12 @@ def _inject_xunoia_branding(bootinfo):
 
 	    frappe.boot.xunoia.branding
 	    frappe.boot.xunoia.hidden_menu_labels
+	    frappe.boot.xunoia.disable_desk_right_click
 	"""
+	branding = _get_branding()
 	bootinfo.xunoia = {
-		"branding": _get_branding(),
+		"branding": branding,
+		"disable_desk_right_click": branding["disable_desk_right_click"],
 		# Frappe v16's avatar/profile menu (frappe/desk/page/desktop/desktop.js
 		# setup_avatar()) builds its items as a hardcoded JS array and never
 		# touches bootinfo.navbar_settings, so it can't be filtered here in
@@ -173,4 +176,5 @@ def _get_branding():
 		"website_url": settings.website_url or "https://xunoia.com",
 		"documentation_url": settings.documentation_url or "https://docs.xunoia.com",
 		"support_url": settings.support_url or "https://support.xunoia.com",
+		"disable_desk_right_click": bool(settings.get("disable_desk_right_click", 1)),
 	}
