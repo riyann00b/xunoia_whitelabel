@@ -13,6 +13,7 @@
   "favicon",
  "desk_section",
  "disable_desk_right_click",
+ "disable_update_notification",
  "links_section",
   "website_url",
   "column_break_links",
@@ -69,6 +70,13 @@
    "fieldname": "disable_desk_right_click",
    "fieldtype": "Check",
    "label": "Disable Desk Right Click"
+  },
+  {
+   "default": "1",
+   "description": "When enabled, Frappe will not check for or show system update notifications.",
+   "fieldname": "disable_update_notification",
+   "fieldtype": "Check",
+   "label": "Disable Update Notification"
   },
   {
    "fieldname": "links_section",

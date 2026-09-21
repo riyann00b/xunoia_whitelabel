@@ -62,6 +62,7 @@ def _ensure_brand_settings():
 		"logo": "/assets/xunoia_whitelabel/images/logo.png",
 		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
 		"disable_desk_right_click": 1,
+		"disable_update_notification": 1,
 		"website_url": "https://xunoia.com",
 		"documentation_url": "https://docs.xunoia.com",
 		"support_url": "https://support.xunoia.com",
@@ -80,8 +81,23 @@ def _ensure_brand_settings():
 	if dirty:
 		settings.flags.ignore_permissions = True
 		settings.save()
+	else:
+		_sync_update_notification_setting(settings)
 
 	_set_customer_facing_app_names(settings)
+
+
+def _sync_update_notification_setting(settings):
+	"""Mirror the Brand Settings toggle to Frappe's supported system flag."""
+	desired_value = 1 if settings.get("disable_update_notification") else 0
+	current_value = frappe.db.get_single_value("System Settings", "disable_system_update_notification")
+	if int(current_value or 0) != desired_value:
+		frappe.db.set_single_value(
+			"System Settings",
+			"disable_system_update_notification",
+			desired_value,
+			update_modified=False,
+		)
 
 
 def _set_customer_facing_app_names(settings):
