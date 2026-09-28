@@ -11,10 +11,11 @@
   "column_break_brand",
   "logo",
   "favicon",
- "desk_section",
- "disable_desk_right_click",
- "disable_update_notification",
- "links_section",
+  "desk_section",
+  "disable_desk_right_click",
+  "disable_update_notification",
+  "disable_product_suggestion",
+  "links_section",
   "website_url",
   "column_break_links",
   "documentation_url",
@@ -79,6 +80,13 @@
    "label": "Disable Update Notification"
   },
   {
+   "default": "1",
+   "description": "When enabled, the \"Switch to Frappe CRM\" and \"Switch to Helpdesk\" sidebar banners are hidden (System Settings > Disable Product Suggestion).",
+   "fieldname": "disable_product_suggestion",
+   "fieldtype": "Check",
+   "label": "Hide Frappe Product Promotions"
+  },
+  {
    "fieldname": "links_section",
    "fieldtype": "Section Break",
    "label": "External Links"
@@ -108,7 +116,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-17 00:00:00.000000",
+ "modified": "2026-09-28 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Xunoia Whitelabel",
  "name": "Xunoia Brand Settings",

@@ -72,6 +72,11 @@ web_include_css = "/assets/xunoia_whitelabel/css/xunoia_whitelabel.css"
 # ---------------------------------------------------------------------------
 extend_bootinfo = "xunoia_whitelabel.boot.boot_session"
 
+# Re-apply the pg_compat patch per request/job: hooks.py itself is not
+# guaranteed to be imported in every worker (see pg_compat.py docstring).
+before_request = ["xunoia_whitelabel.pg_compat.apply"]
+before_job = ["xunoia_whitelabel.pg_compat.apply"]
+
 # ---------------------------------------------------------------------------
 # after_migrate: idempotent, non-destructive config seeding.
 # Fires on every `bench migrate` / `pilot site migrate`. install.py guards

@@ -26,6 +26,8 @@ After install, open **Xunoia Brand Settings** in the desk (Awesomebar ->
 - Logo, Favicon
 - Disable Desk Right Click
 - Disable Update Notification
+- Hide Frappe Product Promotions (the "Switch to Frappe CRM" / "Switch to
+  Helpdesk" sidebar banners)
 - Website / Documentation / Support URLs
 
 Defaults (`XunoiaERP` / `Xunoia` / `https://xunoia.com` / …) are seeded automatically by

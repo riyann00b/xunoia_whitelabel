@@ -27,6 +27,10 @@ Navbar Settings do not recreate the customer-facing framework links.
 
 import frappe
 
+from xunoia_whitelabel.xunoia_whitelabel.doctype.xunoia_brand_settings.xunoia_brand_settings import (
+	sync_system_settings,
+)
+
 
 def after_install():
 	_ensure_brand_settings()
@@ -61,11 +65,19 @@ def _ensure_brand_settings():
 		"company_name": "Xunoia",
 		"logo": "/assets/xunoia_whitelabel/images/logo.png",
 		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
-		"disable_desk_right_click": 1,
-		"disable_update_notification": 1,
 		"website_url": "https://xunoia.com",
 		"documentation_url": "https://docs.xunoia.com",
 		"support_url": "https://support.xunoia.com",
+	}
+	# Check fields: 0 is a deliberate operator choice, not a blank, so the
+	# `not current_value` test used for the text fields above would flip an
+	# unchecked toggle back on every migrate. Seed these only when the field
+	# has never been stored at all (fresh install, or the field was added by
+	# a later app version).
+	check_defaults = {
+		"disable_desk_right_click": 1,
+		"disable_update_notification": 1,
+		"disable_product_suggestion": 1,
 	}
 
 	dirty = False
@@ -78,26 +90,31 @@ def _ensure_brand_settings():
 			settings.set(fieldname, default_value)
 			dirty = True
 
+	stored_fields = _stored_single_fields("Xunoia Brand Settings")
+	for fieldname, default_value in check_defaults.items():
+		if fieldname not in stored_fields:
+			settings.set(fieldname, default_value)
+			dirty = True
+
 	if dirty:
 		settings.flags.ignore_permissions = True
 		settings.save()
 	else:
-		_sync_update_notification_setting(settings)
+		sync_system_settings(settings)
 
 	_set_customer_facing_app_names(settings)
 
 
-def _sync_update_notification_setting(settings):
-	"""Mirror the Brand Settings toggle to Frappe's supported system flag."""
-	desired_value = 1 if settings.get("disable_update_notification") else 0
-	current_value = frappe.db.get_single_value("System Settings", "disable_system_update_notification")
-	if int(current_value or 0) != desired_value:
-		frappe.db.set_single_value(
-			"System Settings",
-			"disable_system_update_notification",
-			desired_value,
-			update_modified=False,
-		)
+def _stored_single_fields(doctype):
+	"""Fieldnames that have a row in tabSingles for this Single DocType.
+
+	Loading a Single through the ORM casts missing Check fields to 0, which
+	is indistinguishable from an explicit 0, so read the raw table instead.
+	"""
+	singles = frappe.qb.DocType("Singles")
+	return set(
+		frappe.qb.from_(singles).select(singles.field).where(singles.doctype == doctype).run(pluck=True)
+	)
 
 
 def _set_customer_facing_app_names(settings):
