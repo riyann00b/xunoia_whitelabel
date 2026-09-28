@@ -28,6 +28,7 @@ Navbar Settings do not recreate the customer-facing framework links.
 import frappe
 
 from xunoia_whitelabel.xunoia_whitelabel.doctype.xunoia_brand_settings.xunoia_brand_settings import (
+	BRAND_DEFAULTS,
 	sync_system_settings,
 )
 
@@ -35,7 +36,7 @@ from xunoia_whitelabel.xunoia_whitelabel.doctype.xunoia_brand_settings.xunoia_br
 def after_install():
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
-	_rebrand_erpnext_workspace_labels()
+	rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
 	_restore_hrms_desktop_icon_label()
 	_ensure_brand_translations()
@@ -46,7 +47,7 @@ def after_migrate():
 	# `bench migrate` / `pilot site migrate` — see module docstring.
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
-	_rebrand_erpnext_workspace_labels()
+	rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
 	_restore_hrms_desktop_icon_label()
 	_ensure_brand_translations()
@@ -59,18 +60,8 @@ def _ensure_brand_settings():
 	"""
 	settings = frappe.get_single("Xunoia Brand Settings")
 
-	defaults = {
-		"product_name": "XunoiaERP",
-		"hr_product_name": "XunoiaHR",
-		"company_name": "Xunoia",
-		"logo": "/assets/xunoia_whitelabel/images/logo.png",
-		"favicon": "/assets/xunoia_whitelabel/images/favicon.png",
-		"website_url": "https://xunoia.com",
-		"documentation_url": "https://docs.xunoia.com",
-		"support_url": "https://support.xunoia.com",
-	}
 	# Check fields: 0 is a deliberate operator choice, not a blank, so the
-	# `not current_value` test used for the text fields above would flip an
+	# `not current_value` test used for the BRAND_DEFAULTS text fields would flip an
 	# unchecked toggle back on every migrate. Seed these only when the field
 	# has never been stored at all (fresh install, or the field was added by
 	# a later app version).
@@ -81,7 +72,7 @@ def _ensure_brand_settings():
 	}
 
 	dirty = False
-	for fieldname, default_value in defaults.items():
+	for fieldname, default_value in BRAND_DEFAULTS.items():
 		current_value = settings.get(fieldname)
 		if not current_value or (
 			fieldname == "product_name"
@@ -192,7 +183,7 @@ def _ensure_xunoia_navbar_items():
 		navbar_settings.save()
 
 
-def _rebrand_erpnext_workspace_labels():
+def rebrand_erpnext_workspace_labels(previous_product_name=None):
 	"""
 	Relabel stock ERPNext-branded Workspace/sidebar entries so "ERPNext
 	Settings" (the last tile in the Workspaces list) reads as
@@ -231,11 +222,17 @@ def _rebrand_erpnext_workspace_labels():
 	self-icon on any correctly-installed site, and attempting it here always
 	collides (confirmed: this is what broke production migrate.py, before
 	the skip-on-collision guard above existed).
+
+	`previous_product_name` is passed by Xunoia Brand Settings.on_update when
+	the product is renamed, so "<old> Settings" -- a label this function
+	wrote itself -- follows the new name too.
 	"""
 	brand = frappe.get_single("Xunoia Brand Settings")
-	product_name = brand.product_name or "XunoiaERP"
+	product_name = brand.product_name or BRAND_DEFAULTS["product_name"]
 	target = f"{product_name} Settings"
 	stock_labels = {"ERPNext Settings"}
+	if previous_product_name:
+		stock_labels.add(f"{previous_product_name} Settings")
 
 	# (doctype, docname, fieldnames to relabel)
 	targets = [

@@ -35,7 +35,7 @@
    "reqd": 1
   },
   {
-   "description": "Replaces \"Frappe HR\" in the Desk. The desktop tile uses a Translation record created on migrate; if you change this later, update that Translation record too.",
+   "description": "Replaces \"Frappe HR\" in the Desk. The desktop tile uses a Translation record created on migrate, which follows changes made here unless you have edited it yourself.",
    "fieldname": "hr_product_name",
    "fieldtype": "Data",
    "label": "HR Product Name"
