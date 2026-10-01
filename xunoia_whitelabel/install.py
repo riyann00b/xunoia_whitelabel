@@ -38,6 +38,8 @@ def after_install():
 	_ensure_xunoia_navbar_items()
 	rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
+	_hide_frappe_framework_icon()
+	_show_crm_icon()
 	_restore_hrms_desktop_icon_label()
 	_ensure_brand_translations()
 
@@ -49,6 +51,8 @@ def after_migrate():
 	_ensure_xunoia_navbar_items()
 	rebrand_erpnext_workspace_labels()
 	_hide_xunoia_self_icon()
+	_hide_frappe_framework_icon()
+	_show_crm_icon()
 	_restore_hrms_desktop_icon_label()
 	_ensure_brand_translations()
 
@@ -283,6 +287,48 @@ def _hide_xunoia_self_icon():
 	icon_name = frappe.db.get_value("Desktop Icon", {"app": "xunoia_whitelabel"}, "name")
 	if icon_name and not frappe.db.get_value("Desktop Icon", icon_name, "hidden"):
 		frappe.db.set_value("Desktop Icon", icon_name, "hidden", 1)
+
+
+def _hide_frappe_framework_icon():
+	"""
+	Hide the Desktop Icon Frappe auto-generates for the framework itself.
+
+	Same mechanism and rationale as _hide_xunoia_self_icon immediately above
+	(frappe.utils.install.auto_generate_icons_and_sidebar /
+	frappe.patches.v16_0.auto_generate_desktop_icon_and_sidebar): frappe's
+	own hooks.py declares `add_to_apps_screen`, with app_title "Frappe
+	Framework" (frappe/hooks.py), so every site gets a standard Desktop Icon
+	for it. On a white-labelled desk this is pure framework plumbing an end
+	user should never need to click.
+
+	Matched by `app` ("frappe"), stable regardless of label, and only
+	hidden, never deleted -- the row (and the `add_to_apps_screen` hook it
+	reads from) stays intact for anything else that looks it up, e.g. the
+	app switcher.
+	"""
+	icon_name = frappe.db.get_value("Desktop Icon", {"app": "frappe"}, "name")
+	if icon_name and not frappe.db.get_value("Desktop Icon", icon_name, "hidden"):
+		frappe.db.set_value("Desktop Icon", icon_name, "hidden", 1)
+
+
+def _show_crm_icon():
+	"""
+	Un-hide the stock "CRM" Desktop Icon (the ERPNext CRM workspace tile)
+	so it takes the main desktop grid's place vacated by XunoiaERP and
+	Frappe Framework above.
+
+	Only the `hidden` flag is touched here -- link_to/icon_type/parent_icon
+	are left exactly as create_desktop_icons_from_workspace() (core) wrote
+	them, so CRM's route and behaviour are unchanged, and the row is never
+	created if missing (e.g. ERPNext not installed, or the CRM workspace
+	renamed/removed on this site) -- this only ever reveals an icon that
+	already exists. "CRM" is both the label and the docname (Desktop Icon
+	autoname: field:label), the same stable identifier core itself matches
+	on (see rebrand_erpnext_workspace_labels / _hide_xunoia_self_icon
+	above), not a guess from UI text.
+	"""
+	if frappe.db.exists("Desktop Icon", "CRM") and frappe.db.get_value("Desktop Icon", "CRM", "hidden"):
+		frappe.db.set_value("Desktop Icon", "CRM", "hidden", 0)
 
 
 def _restore_hrms_desktop_icon_label():
