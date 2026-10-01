@@ -38,8 +38,8 @@ def after_install():
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
 	rebrand_erpnext_workspace_labels()
-	_hide_xunoia_self_icon()
-	_hide_frappe_framework_icon()
+	_remove_xunoia_self_icon()
+	_remove_frappe_framework_icon()
 	_show_crm_icon()
 	_restore_hrms_desktop_icon_label()
 	_ensure_brand_translations()
@@ -51,8 +51,8 @@ def after_migrate():
 	_ensure_brand_settings()
 	_ensure_xunoia_navbar_items()
 	rebrand_erpnext_workspace_labels()
-	_hide_xunoia_self_icon()
-	_hide_frappe_framework_icon()
+	_remove_xunoia_self_icon()
+	_remove_frappe_framework_icon()
 	_show_crm_icon()
 	_restore_hrms_desktop_icon_label()
 	_ensure_brand_translations()
@@ -262,9 +262,9 @@ def rebrand_erpnext_workspace_labels(previous_product_name=None):
 			frappe.db.set_value(doctype, docname, fieldname, target)
 
 
-def _hide_xunoia_self_icon():
+def _remove_xunoia_self_icon():
 	"""
-	Hide the Desktop Icon Frappe auto-generates for this app itself.
+	Delete the Desktop Icon Frappe auto-generates for this app itself.
 
 	frappe.utils.install.auto_generate_icons_and_sidebar() -- wired as
 	after_app_install, and also re-run once, for any site that hadn't
@@ -282,29 +282,40 @@ def _hide_xunoia_self_icon():
 	Looked up through get_app_desktop_icon() (frappe/desk/doctype/desktop_icon/
 	desktop_icon.py) -- core's own helper, also used internally by
 	create_desktop_icons_from_installed_apps() and
-	create_desktop_icons_from_workspace() to find an app's self icon.
-	It filters on `icon_type == "App"` *and* `app == app_name`, not `app`
-	alone: an installed app can own several Desktop Icon rows (its own App
-	tile plus one "Link"-type child row per workspace it ships), all
-	carrying the same `app` field, so `app` by itself is not a unique
-	match -- see _hide_frappe_framework_icon below, where this was a real
-	bug (frappe.json ships 11 rows with app=="frappe", only one of them
-	icon_type "App"). xunoia_whitelabel ships no desktop_icon/ fixtures of
-	its own, so `app` alone happened to be unique here, but matching the
-	same stable, core-supplied lookup as the rest of this module keeps
-	that from becoming an accident someone has to rediscover later.
+	create_desktop_icons_from_workspace() to find an app's self icon. It
+	filters on `icon_type == "App"` *and* `app == app_name`, not `app`
+	alone -- see _remove_frappe_framework_icon below for why `app` by
+	itself is not a safe filter on every app.
 
-	Only hidden, never deleted -- consistent with how the stock "ERPNext"
-	Desktop Icon already ships hidden rather than removed, and keeps
-	add_to_apps_screen itself intact for whatever else reads it (e.g. the
-	app switcher).
+	Deleted, not hidden (an earlier version of this function only set
+	`hidden`): xunoia_whitelabel defines no workspaces of its own, so no
+	other Desktop Icon anywhere has `parent_icon` pointing at this one --
+	unlike the frappe tile below, there is nothing that would get
+	orphaned onto the main grid by removing it.
+
+	Durability: xunoia_whitelabel ships no desktop_icon/ fixture, so
+	nothing re-imports this row on `bench migrate`. Its only creation
+	path, create_desktop_icons_from_installed_apps(), runs once via the
+	after_app_install hook (at `bench install-app` time) and once via the
+	v16_0 auto_generate_desktop_icon_and_sidebar patch (tracked in Patch
+	Log, never reruns) -- so a deleted row here stays deleted. This stays
+	idempotent and in after_migrate anyway, in case a future reinstall
+	recreates it.
 	"""
-	_hide_app_desktop_icon("xunoia_whitelabel")
+	icon_name = get_app_desktop_icon("xunoia_whitelabel")
+	if icon_name:
+		frappe.delete_doc(
+			"Desktop Icon", icon_name, ignore_permissions=True, force=True, ignore_missing=True
+		)
 
 
-def _hide_frappe_framework_icon():
+def _remove_frappe_framework_icon():
 	"""
-	Hide the Desktop Icon shipped for the framework's own self tile.
+	Delete the Desktop Icon shipped for the framework's own self tile, and
+	hide (not delete) the nine Framework-internal module tiles parented
+	to it: Automation, Build, Data, Email, Integrations, Printing, System,
+	Users, Website (all frappe/desktop_icon/*.json, each with
+	`parent_icon: "Framework"`).
 
 	Unlike xunoia_whitelabel, frappe does NOT rely on
 	create_desktop_icons_from_installed_apps() for this tile -- it ships a
@@ -312,28 +323,55 @@ def _hide_frappe_framework_icon():
 	icon_type "App", app "frappe", label "Framework" (not "Frappe
 	Framework" -- the app_title in hooks.py is display text for the
 	app-switcher/about dialog, a separate thing from this icon's actual
-	label; see the module docstring above this function for why `app`
-	alone cannot be used to find it: frappe ships 11 Desktop Icon rows
-	with app=="frappe" -- Framework itself plus one child row per
-	Framework-internal workspace (Build, Automation, Data, Email, ...,
-	each parent_icon: "Framework") -- so an `{"app": "frappe"}` filter
-	with no `icon_type` constraint matches whichever of those 11 rows the
-	database happens to return first, not reliably "Framework".
+	label/docname). Looked up via get_app_desktop_icon("frappe") -- i.e.
+	{"icon_type": "App", "app": "frappe"} -- not a bare `{"app": "frappe"}`
+	filter: frappe ships *eleven* Desktop Icon rows with app == "frappe"
+	(Framework plus its nine children below, plus the unrelated top-level
+	"My Workspaces"), so `app` alone is not a unique match.
 
-	Looked up the same way as _hide_xunoia_self_icon: core's own
-	get_app_desktop_icon("frappe"), which is exactly
-	{"icon_type": "App", "app": "frappe"} and therefore unique. Only
-	hidden, never deleted -- the row (and the `add_to_apps_screen` hook it
-	reads from) stays intact for anything else that looks it up, e.g. the
-	app switcher.
+	Why the nine children must be hidden here too: this function
+	previously only set `hidden` on "Framework" itself (no deletion). That
+	shipped, and a "Frappe Framework"-ish icon still appeared on the main
+	grid afterwards, routing to /desk/build -- which was never "Framework"
+	surviving; it was "Build" escaping. frappe/desk/page/desktop/desktop.js
+	prepare() filters hidden icons OUT before building the parent/child
+	map, so once "Framework" is hidden (or, as here, deleted and therefore
+	absent), each of its nine children -- in their shipped state,
+	hidden: 0 -- no longer finds its parent in that map and is pushed onto
+	the main grid as its own top-level tile instead of staying nested
+	inside "Framework"'s modal. Removing the parent without also hiding
+	the children doesn't remove frappe's framework plumbing from the home
+	page, it *scatters* it into nine separate tiles.
+
+	The children are hidden, not deleted: Users, System Settings, Email,
+	Website etc. are real, still-useful destinations for whoever
+	administers this site -- just not wanted cluttering the main grid once
+	their parent folder is gone. Hiding keeps them reachable from the
+	Removed/Hidden Icons pane, the Awesomebar, or a direct URL.
+
+	Durability: frappe/desktop_icon/framework.json is a fixture, and
+	frappe.model.sync.sync_for() re-imports every installed app's
+	desktop_icon/*.json files on *every* `bench migrate`
+	(app_level_folders in frappe/model/sync.py), before after_migrate
+	hooks run -- so a deleted "Framework" row is recreated by the fixture
+	sync at the start of the very next migrate, then deleted again by this
+	function at that migrate's end. Net effect: absent at the end of every
+	migrate, same as a hidden-flag fix would be, except -- deliberately,
+	per this change's intent -- not recoverable from the Removed/Hidden
+	Icons pane the way a hidden icon would be. The nine children's
+	`hidden` flag is not reset by that same fixture re-sync (they ship
+	hidden: 0 on disk, so sync_for() would put them back to visible every
+	migrate too) -- this function re-hides them every after_migrate run
+	for the same reason _show_crm_icon below re-shows CRM every run.
 	"""
-	_hide_app_desktop_icon("frappe")
-
-
-def _hide_app_desktop_icon(app_name):
-	icon_name = get_app_desktop_icon(app_name)
-	if icon_name and not frappe.db.get_value("Desktop Icon", icon_name, "hidden"):
-		frappe.db.set_value("Desktop Icon", icon_name, "hidden", 1)
+	icon_name = get_app_desktop_icon("frappe")
+	if not icon_name:
+		return
+	children = frappe.get_all("Desktop Icon", filters={"parent_icon": icon_name}, pluck="name")
+	for child in children:
+		if not frappe.db.get_value("Desktop Icon", child, "hidden"):
+			frappe.db.set_value("Desktop Icon", child, "hidden", 1)
+	frappe.delete_doc("Desktop Icon", icon_name, ignore_permissions=True, force=True, ignore_missing=True)
 
 
 def _show_crm_icon():
@@ -346,8 +384,8 @@ def _show_crm_icon():
 	Sidebar", link_to "CRM" (the CRM workspace), parent_icon "ERPNext",
 	hidden 1. "CRM" is both its label and docname (Desktop Icon autoname:
 	field:label) -- the same stable identifier core itself matches on (see
-	rebrand_erpnext_workspace_labels / _hide_xunoia_self_icon above), not a
-	guess from UI text.
+	rebrand_erpnext_workspace_labels / _remove_xunoia_self_icon above), not
+	a guess from UI text.
 
 	Its `parent_icon` ("ERPNext") does not need separate handling: that
 	row (erpnext/desktop_icon/erpnext.json, icon_type "App") also ships
